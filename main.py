@@ -35,7 +35,8 @@ Deterministic, Python 3.13 standard library only, no network, no
 clock, no randomness. Broken input never crashes a run: a market
 with no usable prices is forecast at 0.5 for every quantile, a
 market with too little history falls back to the house baseline
-spread 0.0025, and an unreadable case file is skipped.
+spread 0.0025, an unreadable case file is skipped, and a malformed
+horizon is clamped so the output can never exceed the 1 MiB cap.
 """
 
 import json
@@ -118,6 +119,10 @@ def forecast_case(case):
         horizon = int(case.get("horizon_minutes") or 240)
     except (TypeError, ValueError):
         horizon = 240
+    # Cap the horizon: a malformed case claiming a huge horizon would
+    # blow the output past the 1 MiB cap and invalidate the whole
+    # case. The competition's horizon is 240; 1440 leaves 6x headroom.
+    horizon = max(0, min(horizon, 1440))
     forecasts = []
     for market in case.get("markets") or []:
         try:
